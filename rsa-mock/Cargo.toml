@@ -1,0 +1,9 @@
+[package]
+name = "rsa"
+version = "0.9.10"
+edition = "2024"
+license = "MIT"
+
+[dependencies]
+# 仅保留基础元数据结构，不实现任何 PKCS#1 v1.5 解密核心
+pkcs8 = { version = "0.10", features = ["alloc"] }

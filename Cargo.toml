@@ -17,3 +17,7 @@ sqlx = { version = "0.8.6", default-features = false, features = [
     "json",
 ] }
 tokio = { version = "1.52.3", features = ["full"] }
+
+[patch.crates-io]
+# 强行把所有第三方库引入的 rsa 依赖重定向到本地的空桩
+rsa = { path = "./rsa-mock" }
