@@ -5,20 +5,28 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use handlers::{AppState, handle_create, handle_delete, handle_list, handle_update};
+use handlers::{AppState, handle_create, handle_delete, handle_get, handle_list, handle_update};
 use sqlx::mysql::MySqlPoolOptions;
-
-use crate::handlers::handle_get;
 
 #[tokio::main]
 async fn main() {
-    let database_url = "mysql://root:password@127.0.0.1:3306/test_db";
+    dotenvy::dotenv().expect("Failed to load .env file");
+
+    let database_url = std::env::var("DATABASE_URL")
+        .expect("DATABASE_URL environment variable must be set in .env");
+
+    let server_port = std::env::var("SERVER_PORT").unwrap_or_else(|_| "8080".to_string());
 
     let pool = MySqlPoolOptions::new()
-        .max_connections(5)
-        .connect(database_url)
+        .max_connections(
+            std::env::var("DATABASE_POOL_SIZE")
+                .ok()
+                .and_then(|s| s.parse().ok())
+                .unwrap_or(5),
+        )
+        .connect(&database_url)
         .await
-        .expect("Failed to connect to MySQL");
+        .expect("Failed to connect to MySQL using the provided DATABASE_URL");
 
     let state = AppState { pool };
     let app = Router::new()
@@ -29,8 +37,12 @@ async fn main() {
         )
         .with_state(state);
 
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8080").await.unwrap();
-    println!("🚀 Zero-Code API Engine running on: http://127.0.0.1:8080");
+    let bind_address = format!("0.0.0.0:{}", server_port);
+    let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
+    println!(
+        "🚀 Zero-Code API Engine running on: http://{}",
+        bind_address
+    );
 
     axum::serve(listener, app).await.unwrap();
 }
