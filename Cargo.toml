@@ -10,5 +10,5 @@ edition = "2024"
 [dependencies]
 axum = "0.8.9"
 serde_json = "1.0.149"
-sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "mysql"] }
+sqlx = { version = "0.8.6", features = ["runtime-tokio-rustls", "mysql", "json"] }
 tokio = { version = "1.52.3", features = ["full"] }
