@@ -30,6 +30,20 @@ async fn get_primary_key(
     Ok(row_opt.unwrap_or_else(|| "id".to_string()))
 }
 
+async fn get_table_columns(
+    pool: &sqlx::MySqlPool,
+    table_name: &str,
+) -> Result<Vec<String>, ApiResponse<Value>> {
+    let sql = "SELECT COLUMN_NAME FROM information_schema.COLUMNS \
+               WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?";
+    let columns = sqlx::query_scalar::<_, String>(sql)
+        .bind(table_name)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| ApiResponse::internal_error(e.to_string()))?;
+    Ok(columns)
+}
+
 pub async fn handle_create(
     State(state): State<AppState>,
     Path(table_name): Path<String>,
@@ -78,7 +92,7 @@ pub async fn handle_create(
     }
     .map_err(|e| ApiResponse::internal_error(e.to_string()))?;
 
-    Ok(ApiResponse::success(mysql_row_to_json(&row), start))
+    Ok(ApiResponse::success(mysql_row_to_json(&row, ""), start))
 }
 
 pub async fn handle_list(
@@ -89,21 +103,39 @@ pub async fn handle_list(
     let start = Instant::now();
     validate_identifier(&table_name).map_err(ApiResponse::bad_request)?;
 
-    let ctx = parse_query_params(&params).map_err(ApiResponse::bad_request)?;
+    let mut target_table_cols = Vec::new();
+    let mut target_table_name = String::new();
+    let mut fk_to_exclude = String::new();
+
+    if let Some(join_str) = params.get("_join")
+        && let Ok(join_obj) = serde_json::from_str::<Value>(join_str)
+    {
+        if let Some(t_name) = join_obj.get("table").and_then(|v| v.as_str())
+            && validate_identifier(t_name).is_ok()
+        {
+            target_table_name = t_name.to_string();
+            target_table_cols = get_table_columns(&state.pool, t_name).await?;
+        }
+
+        if let Some(on_col) = join_obj.get("on").and_then(|v| v.as_str()) {
+            fk_to_exclude = on_col.to_string();
+        }
+    }
+
+    let ctx = parse_query_params(&table_name, &target_table_name, target_table_cols, &params)
+        .map_err(ApiResponse::bad_request)?;
 
     let mut sql = format!(
-        "SELECT {} FROM `{}` WHERE 1=1 {}",
-        ctx.select_fields, table_name, ctx.sql_clauses
+        "SELECT {} FROM `{}`{} WHERE 1=1 {}",
+        ctx.select_fields, table_name, ctx.join_clauses, ctx.sql_clauses
     );
 
     if let Some(g) = ctx.group_by {
-        sql.push_str(&format!(" GROUP BY `{}`", g));
+        sql.push_str(&format!(" GROUP BY `{}`.`{}`", table_name, g));
     }
-
     if !ctx.having_clauses.is_empty() {
         sql.push_str(&format!(" HAVING 1=1 {}", ctx.having_clauses));
     }
-
     if ctx.limit.is_some() {
         sql.push_str(" LIMIT ?");
     }
@@ -126,10 +158,13 @@ pub async fn handle_list(
         .fetch_all(&state.pool)
         .await
         .map_err(|e| ApiResponse::internal_error(e.to_string()))?;
-    Ok(ApiResponse::success(
-        Value::Array(rows.iter().map(mysql_row_to_json).collect()),
-        start,
-    ))
+
+    let json_array = Value::Array(
+        rows.iter()
+            .map(|r| mysql_row_to_json(r, &fk_to_exclude))
+            .collect(),
+    );
+    Ok(ApiResponse::success(json_array, start))
 }
 
 pub async fn handle_get(
@@ -147,7 +182,8 @@ pub async fn handle_get(
     .fetch_one(&state.pool)
     .await
     .map_err(|e| ApiResponse::internal_error(e.to_string()))?;
-    Ok(ApiResponse::success(mysql_row_to_json(&row), start))
+
+    Ok(ApiResponse::success(mysql_row_to_json(&row, ""), start))
 }
 
 pub async fn handle_update(
@@ -172,7 +208,6 @@ pub async fn handle_update(
         set_clauses.push(format!("`{}` = ?", key));
         query_values.push(value);
     }
-
     if set_clauses.is_empty() {
         return Err(ApiResponse::bad_request("No fields provided for update"));
     }
@@ -201,7 +236,8 @@ pub async fn handle_update(
     .fetch_one(&state.pool)
     .await
     .map_err(|e| ApiResponse::internal_error(e.to_string()))?;
-    Ok(ApiResponse::success(mysql_row_to_json(&row), start))
+
+    Ok(ApiResponse::success(mysql_row_to_json(&row, ""), start))
 }
 
 pub async fn handle_delete(
