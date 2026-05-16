@@ -59,4 +59,14 @@ impl ApiResponse<Value> {
             duration_ms: None,
         }
     }
+
+    pub fn too_many_requests(msg: impl Into<String>) -> Self {
+        Self {
+            success: false,
+            status: 429,
+            data: None,
+            error: Some(msg.into()),
+            duration_ms: None,
+        }
+    }
 }
