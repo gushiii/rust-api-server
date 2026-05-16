@@ -126,6 +126,9 @@ pub async fn handle_list(
     let mut limit: Option<i64> = None;
     let mut offset: Option<i64> = None;
 
+    let mut sort_by: Option<String> = None;
+    let mut order_by: String = "ASC".to_string();
+
     for (key, value) in &params {
         if key == "_limit" {
             limit = value.parse::<i64>().ok();
@@ -150,6 +153,25 @@ pub async fn handle_list(
 
         if let Some(conditions) = where_obj.as_object() {
             for (field, block) in conditions {
+                if field == "_sort" {
+                    if let Some(s) = block.as_str() {
+                        validate_identifier(s)?; // 字段排序无法绑定参数，必须严格走白名单检查防注入
+                        sort_by = Some(s.to_string());
+                    }
+                    continue;
+                }
+                if field == "_order" {
+                    if let Some(o) = block.as_str() {
+                        let o_upper = o.to_uppercase();
+                        if o_upper == "ASC" || o_upper == "DESC" {
+                            order_by = o_upper;
+                        } else {
+                            return Err("Invalid _order value. Must be 'asc' or 'desc'".to_string());
+                        }
+                    }
+                    continue;
+                }
+
                 validate_identifier(field)?;
 
                 match block {
@@ -193,6 +215,10 @@ pub async fn handle_list(
                 }
             }
         }
+    }
+
+    if let Some(sort_field) = sort_by {
+        sql.push_str(&format!(" ORDER BY `{}` {}", sort_field, order_by));
     }
 
     if limit.is_some() {
