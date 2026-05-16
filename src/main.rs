@@ -2,6 +2,7 @@ mod binder;
 mod encoder;
 mod handlers;
 mod parser;
+mod response;
 
 use axum::{
     Router,
