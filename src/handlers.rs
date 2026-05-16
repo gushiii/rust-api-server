@@ -23,10 +23,10 @@ fn validate_identifier(name: &str) -> Result<(), String> {
 
 async fn get_primary_key(pool: &sqlx::MySqlPool, table_name: &str) -> Result<String, String> {
     let sql = "
-        SELECT COLUMN_NAME 
-        FROM information_schema.KEY_COLUMN_USAGE 
-        WHERE TABLE_SCHEMA = DATABASE() 
-          AND CONSTRAINT_NAME = 'PRIMARY' 
+        SELECT COLUMN_NAME
+        FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND CONSTRAINT_NAME = 'PRIMARY'
           AND TABLE_NAME = ?
         LIMIT 1
     ";
@@ -121,17 +121,117 @@ pub async fn handle_list(
     validate_identifier(&table_name)?;
 
     let mut sql = format!("SELECT * FROM `{}` WHERE 1=1", table_name);
-    let mut bind_values = Vec::new();
+    let mut bind_values: Vec<Value> = Vec::new();
 
-    for (key, value) in params {
-        validate_identifier(&key)?;
+    let mut limit: Option<i64> = None;
+    let mut offset: Option<i64> = None;
+
+    for (key, value) in &params {
+        if key == "_limit" {
+            limit = value.parse::<i64>().ok();
+            continue;
+        }
+        if key == "_offset" {
+            offset = value.parse::<i64>().ok();
+            continue;
+        }
+        if key == "_where" {
+            continue;
+        }
+
+        validate_identifier(key)?;
         sql.push_str(&format!(" AND `{}` = ?", key));
-        bind_values.push(value);
+        bind_values.push(Value::String(value.clone()));
+    }
+
+    if let Some(where_str) = params.get("_where") {
+        let where_obj: Value = serde_json::from_str(where_str)
+            .map_err(|e| format!("Invalid JSON inside _where parameter: {}", e))?;
+
+        if let Some(conditions) = where_obj.as_object() {
+            for (field, block) in conditions {
+                validate_identifier(field)?;
+
+                match block {
+                    Value::String(_) | Value::Number(_) | Value::Bool(_) => {
+                        sql.push_str(&format!(" AND `{}` = ?", field));
+                        bind_values.push(block.clone());
+                    }
+                    Value::Object(inner_map) => {
+                        for (op, op_val) in inner_map {
+                            match op.as_str() {
+                                "$gt" => {
+                                    sql.push_str(&format!(" AND `{}` > ?", field));
+                                    bind_values.push(op_val.clone());
+                                }
+                                "$gte" => {
+                                    sql.push_str(&format!(" AND `{}` >= ?", field));
+                                    bind_values.push(op_val.clone());
+                                }
+                                "$lt" => {
+                                    sql.push_str(&format!(" AND `{}` < ?", field));
+                                    bind_values.push(op_val.clone());
+                                }
+                                "$lte" => {
+                                    sql.push_str(&format!(" AND `{}` <= ?", field));
+                                    bind_values.push(op_val.clone());
+                                }
+                                "$neq" => {
+                                    sql.push_str(&format!(" AND `{}` != ?", field));
+                                    bind_values.push(op_val.clone());
+                                }
+                                "$like" => {
+                                    sql.push_str(&format!(" AND `{}` LIKE ?", field));
+                                    let raw_str = op_val.as_str().unwrap_or("");
+                                    bind_values.push(Value::String(format!("%{}%", raw_str)));
+                                }
+                                _ => return Err(format!("Unsupported operator: {}", op)),
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+
+    if limit.is_some() {
+        sql.push_str(" LIMIT ?");
+    }
+    if offset.is_some() {
+        sql.push_str(" OFFSET ?");
     }
 
     let mut query = sqlx::query(&sql);
-    for val in bind_values {
-        query = query.bind(val);
+    for json_val in bind_values {
+        query = match json_val {
+            Value::String(s) => {
+                if let Ok(i) = s.parse::<i64>() {
+                    query.bind(i)
+                } else if let Ok(f) = s.parse::<f64>() {
+                    query.bind(f)
+                } else {
+                    query.bind(s)
+                }
+            }
+            Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    query.bind(i)
+                } else {
+                    query.bind(n.as_f64().unwrap_or(0.0))
+                }
+            }
+            Value::Bool(b) => query.bind(b),
+            Value::Null => query.bind(None::<String>),
+            _ => query.bind(json_val.to_string()),
+        };
+    }
+
+    if let Some(l) = limit {
+        query = query.bind(l);
+    }
+    if let Some(o) = offset {
+        query = query.bind(o);
     }
 
     let rows = query
