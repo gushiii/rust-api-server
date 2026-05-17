@@ -41,7 +41,6 @@ pub fn parse_query_params(
     let mut join_clauses = String::new();
 
     let mut has_join = false;
-
     let mut agg_functions_map = HashMap::new();
 
     if !target_table.is_empty()
@@ -67,13 +66,17 @@ pub fn parse_query_params(
 
             select_list.push(format!("`{}`.*", main_table));
 
-            for col in target_cols {
-                if validate_identifier(&col).is_ok() {
-                    select_list.push(format!(
-                        "`{}`.`{}` AS `{}__{}`",
-                        target_table, col, target_table, col
-                    ));
+            if !target_cols.is_empty() {
+                for col in target_cols {
+                    if validate_identifier(&col).is_ok() {
+                        select_list.push(format!(
+                            "`{}`.`{}` AS `{}__{}`",
+                            target_table, col, target_table, col
+                        ));
+                    }
                 }
+            } else {
+                select_list.push(format!("`{}`.*", target_table));
             }
             has_join = true;
         }
