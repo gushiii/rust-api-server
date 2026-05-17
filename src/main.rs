@@ -1,11 +1,13 @@
+mod auth;
 mod binder;
 mod encoder;
 mod handlers;
 mod parser;
 mod response;
 
+use auth::{handle_login, handle_register};
 use axum::{
-    Router,
+    Router, middleware,
     routing::{get, post},
 };
 use handlers::{AppState, handle_create, handle_delete, handle_get, handle_list, handle_update};
@@ -15,12 +17,11 @@ use axum::http::{HeaderValue, Method};
 use axum::response::IntoResponse;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
+use crate::{auth::handle_refresh, response::ApiResponse};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tower_governor::key_extractor::PeerIpKeyExtractor;
 use tower_governor::{GovernorLayer, governor::GovernorConfigBuilder};
-
-use crate::response::ApiResponse;
 
 #[tokio::main]
 async fn main() {
@@ -33,7 +34,6 @@ async fn main() {
         .unwrap_or_else(|_| "10".to_string())
         .parse::<u32>()
         .unwrap_or(10);
-
     let rate_limit_per_sec = std::env::var("RATE_LIMIT_PER_SECOND")
         .unwrap_or_else(|_| "2".to_string())
         .parse::<u64>()
@@ -44,7 +44,6 @@ async fn main() {
         .connect(&database_url)
         .await
         .expect("Failed to connect to MySQL");
-
     let state = AppState { pool };
 
     let allow_origin_rule = match std::env::var("CORS_ALLOWED_ORIGINS") {
@@ -81,20 +80,27 @@ async fn main() {
             .finish()
             .unwrap(),
     );
-
     let rate_limiter = GovernorLayer::new(governor_config).error_handler(|_error| {
-        let custom_error = ApiResponse::too_many_requests(
-            "Too Many Requests. Please slow down and try again later.",
-        );
-        custom_error.into_response()
+        ApiResponse::too_many_requests("Too Many Requests. Please slow down and try again later.")
+            .into_response()
     });
 
-    let app = Router::new()
+    let public_auth_routes = Router::new()
+        .route("/api/v1/auth/{table}/login", post(handle_login))
+        .route("/api/v1/auth/{table}/register", post(handle_register))
+        .route("/api/v1/auth/{table}/refresh", post(handle_refresh));
+
+    let protected_crud_routes = Router::new()
         .route("/api/v1/{table}", post(handle_create).get(handle_list))
         .route(
             "/api/v1/{table}/{id}",
             get(handle_get).put(handle_update).delete(handle_delete),
         )
+        .layer(middleware::from_fn(auth::jwt_middleware));
+
+    let app = Router::new()
+        .merge(public_auth_routes)
+        .merge(protected_crud_routes)
         .with_state(state)
         .layer(cors)
         .layer(rate_limiter);
@@ -102,7 +108,7 @@ async fn main() {
     let bind_address = format!("0.0.0.0:{}", server_port);
     let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
     println!(
-        "🚀 Rust Zero-Code API Engine with Custom 429 JSON Response running on: http://{}",
+        "🚀 [Gateway Layer v2] Orchestrated successfully! Server listening on: http://{}",
         bind_address
     );
 
