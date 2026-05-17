@@ -108,7 +108,7 @@ async fn main() {
     let bind_address = format!("0.0.0.0:{}", server_port);
     let listener = tokio::net::TcpListener::bind(&bind_address).await.unwrap();
     println!(
-        "🚀 [Gateway Layer v2] Orchestrated successfully! Server listening on: http://{}",
+        "🚀 [CRUD Server] Orchestrated successfully! Server listening on: http://{}",
         bind_address
     );
 

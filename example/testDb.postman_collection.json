@@ -1,0 +1,894 @@
+{
+	"info": {
+		"_postman_id": "738b2d75-e818-47d7-8b1d-a1ad83833ebd",
+		"name": "testDb",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "JWT auth",
+			"item": [
+				{
+					"name": "register",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"123456\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth_test/auth/register",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth_test",
+								"auth",
+								"register"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"var access_token = jsonData.data.access_token;",
+									"var refresh_token = jsonData.data.refresh_token;",
+									"pm.collectionVariables.set(\"refresh_token\", refresh_token);",
+									"pm.collectionVariables.set(\"access_token\", access_token);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"123456\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/auth_test/login",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"auth_test",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "refresh",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"var access_token = jsonData.data.access_token;",
+									"var refresh_token = jsonData.data.refresh_token;",
+									"pm.collectionVariables.set(\"refresh_token\", refresh_token);",
+									"pm.collectionVariables.set(\"access_token\", access_token);"
+								],
+								"type": "text/javascript"
+							}
+						},
+						{
+							"listen": "prerequest",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"refresh_token\": \"{{refresh_token}}\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/auth_test/refresh",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"auth",
+								"auth_test",
+								"refresh"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "sql注入 测试",
+			"item": [
+				{
+					"name": "字段名（Key）物理拼接注入",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products?_where={\"title`=1 OR 1=1; --\":{\"$like\":\"java\"}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_where",
+									"value": "{\"title`=1 OR 1=1; --\":{\"$like\":\"java\"}}",
+									"description": "sql 注入测试"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "联合查询堆叠注入 ('; DROP TABLE...)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products?_where={\"title\":{\"$like\":\"max'; DROP TABLE users; --\"}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_where",
+									"value": "{\"title\":{\"$like\":\"max'; DROP TABLE users; --\"}}",
+									"description": "sql 注入测试"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "盲注 (' OR '1'='1)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products?_where={\"title\":{\"$like\":\"max' OR '1'='1\"}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_where",
+									"value": "{\"title\":{\"$like\":\"max' OR '1'='1\"}}",
+									"description": "sql 注入测试"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "分页 测试",
+			"item": [
+				{
+					"name": "分页查询",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"product_uuid\": \"p_002\", \"title\": \"java Book\", \"price\": 99}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products?_limit=3&_offset=15",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_limit",
+									"value": "3"
+								},
+								{
+									"key": "_offset",
+									"value": "15"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "基础查询 测试",
+			"item": [
+				{
+					"name": "列表查询 测试",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:8888",
+								"type": "default"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_group",
+									"value": "status",
+									"disabled": true
+								},
+								{
+									"key": "_aggregate",
+									"value": "{\"count\":\"*\",\"avg\":\"price\"}",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "新增数据 测试",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"product_uuid\": \"p_002\",\n    \"title\": \"java api\",\n    \"price\": 99,\n    \"status\": \"active\" \n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "修改数据 测试",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"title\": \"java Book\", \"price\": 88}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products/p_002",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products",
+								"p_002"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "删除数据(物理删除) 测试",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/products/p_002",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products",
+								"p_002"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "根据主键查询 测试",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/products/pk_002",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products",
+								"pk_002"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "where 测试",
+			"item": [
+				{
+					"name": "where 条件查询",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products?_where={\"price\":{\"$gt\":20,\"$lte\":99}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_where",
+									"value": "{\"price\":{\"$gt\":20,\"$lte\":99}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "模糊查询",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products?_where={\"title\":{\"$like\":\"max\"}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_where",
+									"value": "{\"title\":{\"$like\":\"max\"}}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "查询排序",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json",
+								"type": "default"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products?_where={\"price\":{\"$gt\":1000},\"_sort\":\"price\"}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_where",
+									"value": "{\"price\":{\"$gt\":1000},\"_sort\":\"price\"}",
+									"description": "默认 升序"
+								},
+								{
+									"key": "_where",
+									"value": "{\"price\":{\"$gt\":1000},\"_sort\":\"price\",\"_order\":\"desc\"}",
+									"description": "降序",
+									"disabled": true
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "聚合函数 测试",
+			"item": [
+				{
+					"name": "分组查询",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:8888",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"product_uuid\": \"p_002\", \"title\": \"java Book\", \"price\": 99}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products?_group=status&_aggregate={\"count\":\"*\"}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_group",
+									"value": "status"
+								},
+								{
+									"key": "_aggregate",
+									"value": "{\"count\":\"*\"}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "聚合函数 sum",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:8888",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"product_uuid\": \"p_002\", \"title\": \"java Book\", \"price\": 99}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products?_group=status&_aggregate={\"count\":\"*\",\"sum\":\"price\"}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_group",
+									"value": "status"
+								},
+								{
+									"key": "_aggregate",
+									"value": "{\"count\":\"*\",\"sum\":\"price\"}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "聚合函数 avg",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:8888",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"product_uuid\": \"p_002\", \"title\": \"java Book\", \"price\": 99}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products?_group=status&_aggregate={\"count\":\"*\",\"avg\":\"price\"}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_group",
+									"value": "status"
+								},
+								{
+									"key": "_aggregate",
+									"value": "{\"count\":\"*\",\"avg\":\"price\"}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "聚合函数 max",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:8888",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"product_uuid\": \"p_002\", \"title\": \"java Book\", \"price\": 99}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products?_group=status&_aggregate={\"count\":\"*\",\"max\":\"price\"}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_group",
+									"value": "status"
+								},
+								{
+									"key": "_aggregate",
+									"value": "{\"count\":\"*\",\"max\":\"price\"}"
+								}
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "聚合函数 min",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:8888",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"product_uuid\": \"p_002\", \"title\": \"java Book\", \"price\": 99}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products?_group=status&_aggregate={\"count\":\"*\",\"min\":\"price\"}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_group",
+									"value": "status"
+								},
+								{
+									"key": "_aggregate",
+									"value": "{\"count\":\"*\",\"min\":\"price\"}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Having 子句 测试",
+			"item": [
+				{
+					"name": "Having 子句",
+					"protocolProfileBehavior": {
+						"disableBodyPruning": true
+					},
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:8888",
+								"type": "default"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\"product_uuid\": \"p_002\", \"title\": \"java Book\", \"price\": 99}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{base_url}}/products?_group=status&_aggregate={\"count\":\"*\",\"sum\":\"price\"}&_having={\"count\":{\"$gt\":5}}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_group",
+									"value": "status"
+								},
+								{
+									"key": "_aggregate",
+									"value": "{\"count\":\"*\",\"sum\":\"price\"}"
+								},
+								{
+									"key": "_having",
+									"value": "{\"count\":{\"$gt\":5}}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "join 联表查询 测试",
+			"item": [
+				{
+					"name": "联表查询",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Origin",
+								"value": "http://localhost:8888",
+								"type": "default"
+							}
+						],
+						"url": {
+							"raw": "{{base_url}}/products?_join={\"table\":\"categories\",\"on\":\"category_id\"}",
+							"host": [
+								"{{base_url}}"
+							],
+							"path": [
+								"products"
+							],
+							"query": [
+								{
+									"key": "_join",
+									"value": "{\"table\":\"categories\",\"on\":\"category_id\"}"
+								}
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://127.0.0.1:8080/api/v1",
+			"type": "default"
+		},
+		{
+			"key": "refresh_token",
+			"value": ""
+		},
+		{
+			"key": "access_token",
+			"value": ""
+		}
+	]
+}
